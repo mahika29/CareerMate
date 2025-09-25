@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <title>CareerMate - AI Job Assistant</title>
+    <link href="https://fonts.googleapis.com" rel="preconnect" />
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#474aeb",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#111121",
+                    },
+                    fontFamily: {
+                        "display": ["Inter"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "1rem",
+                        "xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+    <style>
+        .typing-indicator span {
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+
+        .typing-indicator span:nth-child(1) {
+            animation-delay: -0.32s;
+        }
+
+        .typing-indicator span:nth-child(2) {
+            animation-delay: -0.16s;
+        }
+
+        @keyframes bounce {
+
+            0%,
+            80%,
+            100% {
+                transform: scale(0);
+            }
+
+            40% {
+                transform: scale(1.0);
+            }
+        }
+
+        .message-animation {
+            animation: slideInUp 0.3s ease-out;
+        }
+
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .upload-area {
+            border: 2px dashed #6b7280;
+            transition: all 0.3s ease;
+        }
+
+        .upload-area.dragover {
+            border-color: #474aeb;
+            background-color: rgba(71, 74, 235, 0.1);
+        }
+
+        .job-card {
+            background: linear-gradient(135deg, rgba(71, 74, 235, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+            border: 1px solid rgba(71, 74, 235, 0.3);
+        }
+
+        .suggestion-button {
+            transition: all 0.2s ease;
+        }
+
+        .suggestion-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .voice-interface {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+
+        .voice-circle {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #4f46e5, #7c3aed);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .voice-circle.listening {
+            animation: pulse-listening 1.5s infinite;
+            box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.7);
+        }
+
+        .voice-circle.speaking {
+            animation: pulse-speaking 0.8s infinite;
+        }
+
+        .voice-particles {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+        }
+
+        .voice-particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 50%;
+            animation: float 3s infinite linear;
+        }
+
+        @keyframes pulse-listening {
+            0% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.7);
+            }
+
+            50% {
+                transform: scale(1.1);
+                box-shadow: 0 0 0 20px rgba(79, 70, 229, 0);
+            }
+
+            100% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(79, 70, 229, 0);
+            }
+        }
+
+        @keyframes pulse-speaking {
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.05);
+            }
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(100px) rotate(0deg);
+                opacity: 0;
+            }
+
+            10% {
+                opacity: 1;
+            }
+
+            90% {
+                opacity: 1;
+            }
+
+            100% {
+                transform: translateY(-100px) rotate(360deg);
+                opacity: 0;
+            }
+        }
+
+        .voice-text {
+            color: white;
+            font-size: 1.25rem;
+            font-weight: 500;
+            margin-top: 2rem;
+            text-align: center;
+        }
+
+        .voice-status {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+    </style>
+</head>
+
+<body class="font-display bg-background-light dark:bg-background-dark text-gray-800 dark:text-gray-200">
+    <div class="flex h-screen">
+        <aside
+            class="w-[300px] bg-background-light/50 dark:bg-background-dark/50 p-6 flex flex-col shrink-0 border-r border-gray-200/10 dark:border-gray-800/50 backdrop-blur-sm">
+            <div class="flex items-center gap-3 mb-8">
+                <span class="text-3xl">🤖</span>
+                <div>
+                    <h1 class="text-xl font-bold text-gray-900 dark:text-white">CareerMate</h1>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">AI Job Assistant</p>
+                </div>
+            </div>
+
+            <!-- Resume Upload Section -->
+            <div class="mb-6">
+                <label class="text-sm font-medium text-gray-600 dark:text-gray-400 block mb-2">Resume Upload</label>
+                <div class="upload-area rounded-lg p-4 text-center cursor-pointer"
+                    onclick="document.getElementById('resumeFile').click()"
+                    ondragover="event.preventDefault(); this.classList.add('dragover');"
+                    ondragleave="this.classList.remove('dragover');" ondrop="handleFileDrop(event)">
+                    <input type="file" id="resumeFile" accept=".pdf,.doc,.docx" style="display: none;"
+                        onchange="handleFileSelect(event)" />
+                    <div class="text-3xl mb-2">📄</div>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">Click or drag PDF here</p>
+                    <p class="text-xs text-gray-500 mt-1">Max 16MB</p>
+                </div>
+                <div id="uploadStatus" class="hidden mt-2 text-sm"></div>
+            </div>
+
+            <div class="space-y-6">
+                <div>
+                    <label class="text-sm font-medium text-gray-600 dark:text-gray-400 block mb-2"
+                        for="language-select">Language</label>
+                    <select
+                        class="w-full px-4 py-2 bg-background-light/50 dark:bg-background-dark/50 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-primary focus:border-primary"
+                        id="language-select">
+                        <option value="en">English</option>
+                        <option value="hi">Hindi</option>
+                        <option value="pa">Punjabi</option>
+                        <option value="kn">Kannada</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-gray-600 dark:text-gray-400 block mb-2">Voice Style</label>
+                    <div class="flex items-center gap-2">
+                        <label class="flex-1">
+                            <input checked="" class="sr-only" name="voice-style" type="radio" value="male" />
+                            <div
+                                class="text-center py-2 px-4 rounded-lg cursor-pointer bg-primary/10 dark:bg-primary/20 text-primary border-2 border-transparent">
+                                Male</div>
+                        </label>
+                        <label class="flex-1">
+                            <input class="sr-only" name="voice-style" type="radio" value="female" />
+                            <div
+                                class="text-center py-2 px-4 rounded-lg cursor-pointer bg-background-light/50 dark:bg-background-dark/50 border border-gray-300 dark:border-gray-700">
+                                Female</div>
+                        </label>
+                    </div>
+                </div>
+                <div>
+                    <h2 class="text-sm font-medium text-gray-600 dark:text-gray-400 block mb-3">AI Features</h2>
+                    <ul class="space-y-3">
+                        <li class="flex items-center gap-3">
+                            <div class="w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center">
+                                <span class="text-green-400 text-xs">📄</span>
+                            </div>
+                            <label class="text-gray-700 dark:text-gray-300 text-sm">Resume Analysis</label>
+                        </li>
+                        <li class="flex items-center gap-3">
+                            <div class="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center">
+                                <span class="text-blue-400 text-xs">🔍</span>
+                            </div>
+                            <label class="text-gray-700 dark:text-gray-300 text-sm">Smart Job Search</label>
+                        </li>
+                        <li class="flex items-center gap-3">
+                            <div class="w-6 h-6 rounded-full bg-purple-500/20 flex items-center justify-center">
+                                <span class="text-purple-400 text-xs">🎤</span>
+                            </div>
+                            <label class="text-gray-700 dark:text-gray-300 text-sm">Voice Input</label>
+                        </li>
+                        <li class="flex items-center gap-3">
+                            <div class="w-6 h-6 rounded-full bg-indigo-500/20 flex items-center justify-center">
+                                <span class="text-indigo-400 text-xs">💼</span>
+                            </div>
+                            <label class="text-gray-700 dark:text-gray-300 text-sm">LinkedIn Jobs</label>
+                        </li>
+                        <li class="flex items-center gap-3">
+                            <div class="w-6 h-6 rounded-full bg-yellow-500/20 flex items-center justify-center">
+                                <span class="text-yellow-400 text-xs">🎯</span>
+                            </div>
+                            <label class="text-gray-700 dark:text-gray-300 text-sm">Interview Prep</label>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </aside>
+
+        <main class="flex-1 flex flex-col bg-background-light dark:bg-background-dark">
+            <div class="flex-1 p-6 space-y-6 overflow-y-auto" id="chatMessages">
+                <!-- Welcome message -->
+                <div class="flex items-start gap-4">
+                    <div
+                        class="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white font-bold">
+                        AI</div>
+                    <div class="flex flex-col items-start">
+                        <span class="text-sm text-gray-500 dark:text-gray-400 mb-1">CareerMate</span>
+                        <div
+                            class="p-4 rounded-lg rounded-tl-none bg-gray-200 dark:bg-gray-800 text-gray-800 dark:text-gray-200 max-w-md">
+                            👋 Hello! I'm CareerMate, your AI job assistant. Upload your resume for personalized job
+                            recommendations, or ask me about careers, interviews, and job search tips!
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Typing indicator -->
+            <div class="p-6 hidden" id="typingIndicator">
+                <div class="flex items-start gap-4">
+                    <div
+                        class="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white font-bold">
+                        AI</div>
+                    <div class="flex flex-col items-start">
+                        <span class="text-sm text-gray-500 dark:text-gray-400 mb-1">CareerMate</span>
+                        <div class="p-4 rounded-lg rounded-tl-none bg-gray-200 dark:bg-gray-800">
+                            <div class="typing-indicator flex items-center space-x-1.5">
+                                <span class="h-2 w-2 bg-gray-500 rounded-full"></span>
+                                <span class="h-2 w-2 bg-gray-500 rounded-full"></span>
+                                <span class="h-2 w-2 bg-gray-500 rounded-full"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div
+                class="p-6 bg-background-light/50 dark:bg-background-dark/50 border-t border-gray-200/10 dark:border-gray-800/50 backdrop-blur-sm">
+                <div class="flex items-center gap-4">
+                    <button
+                        class="p-3 rounded-xl bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                        onclick="document.getElementById('resumeFile').click()" title="Upload Resume">📎</button>
+                    <div class="relative flex-1">
+                        <input
+                            class="w-full pl-4 pr-12 py-3 rounded-xl bg-background-light dark:bg-gray-800 border border-gray-300 dark:border-gray-700 focus:ring-primary focus:border-primary text-gray-800 dark:text-gray-200"
+                            placeholder="Ask about jobs or upload your resume..." type="text" id="messageInput" />
+                        <button
+                            class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-primary transition-colors"
+                            onclick="startVoiceInput()">
+                            <svg fill="currentColor" height="24" viewBox="0 0 256 256" width="24"
+                                xmlns="http://www.w3.org/2000/svg">
+                                <path
+                                    d="M128,176a48.05,48.05,0,0,0,48-48V64a48,48,0,0,0-96,0v64A48.05,48.05,0,0,0,128,176ZM96,64a32,32,0,0,1,64,0v64a32,32,0,0,1-64,0Zm40,143.6V232a8,8,0,0,1-16,0V207.6A80.11,80.11,0,0,1,48,128a8,8,0,0,1,16,0,64,64,0,0,0,128,0,8,8,0,0,1,16,0A80.11,80.11,0,0,1,136,207.6Z">
+                                </path>
+                            </svg>
+                        </button>
+                    </div>
+                    <button
+                        class="bg-primary text-white rounded-xl p-3 hover:bg-primary/90 transition-colors shadow-lg shadow-primary/30"
+                        onclick="sendMessage()">
+                        <svg fill="currentColor" height="24" viewBox="0 0 256 256" width="24"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path
+                                d="M227.32,28.68a16,16,0,0,0-15.66-4.08l-.15,0L19.57,82.84a16,16,0,0,0-2.42,29.84l85.62,40.55,40.55,85.62A15.86,15.86,0,0,0,157.74,248q.69,0,1.38-.06a15.88,15.88,0,0,0,14-11.51l58.2-191.94c0-.05,0-.1,0-.15A16,16,0,0,0,227.32,28.68ZM157.83,231.85l-.05.14L118.42,148.9l47.24-47.25a8,8,0,0,0-11.31-11.31L107.1,137.58,24,98.22l.14,0L216,40Z">
+                            </path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let currentLanguage = 'en';
+        let isSpeakerEnabled = false;
+        let isListening = false;
+        let recognition = null;
+        let conversationHistory = [];
+
+        // Single unified addMessage function
+        function addMessage(message, isUser = false, suggestions = []) {
+            const container = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `flex items-start gap-4 message-animation ${isUser ? 'justify-end' : ''}`;
+
+            if (isUser) {
+                messageDiv.innerHTML = `
+                <div class="flex flex-col items-end">
+                    <span class="text-sm text-gray-500 dark:text-gray-400 mb-1">You</span>
+                    <div class="p-4 rounded-lg rounded-tr-none bg-primary text-white max-w-md">
+                        ${message}
+                    </div>
+                </div>
+                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center text-white font-bold">YOU</div>
+            `;
+            } else {
+                // Use provided suggestions or generate client-side ones
+                const finalSuggestions = suggestions.length > 0 ? suggestions : getSuggestions(message, getLastUserMessage());
+                const suggestionsHtml = finalSuggestions.length > 0 ? `
+                <div class="mt-3 flex flex-wrap gap-2">
+                    ${finalSuggestions.map(suggestion => `
+                        <button onclick="sendSuggestion('${suggestion.replace(/'/g, "\\'")}');" 
+                                class="text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 px-3 py-1 rounded-full transition-colors border border-gray-300 dark:border-gray-600">
+                            ${suggestion}
+                        </button>
+                    `).join('')}
+                </div>
+            ` : '';
+
+                messageDiv.innerHTML = `
+                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white font-bold">AI</div>
+                <div class="flex flex-col items-start">
+                    <span class="text-sm text-gray-500 dark:text-gray-400 mb-1">CareerMate</span>
+                    <div class="p-4 rounded-lg rounded-tl-none bg-gray-200 dark:bg-gray-800 text-gray-800 dark:text-gray-200 max-w-md">
+                        ${message}
+                        <button onclick="speakMessage('${message.replace(/'/g, "\\'")}')" class="ml-2 text-xs bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded-full transition-colors" title="🔊 Speak">🔊</button>
+                        ${suggestionsHtml}
+                    </div>
+                </div>
+            `;
+            }
+
+            container.appendChild(messageDiv);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function addJobSuggestions(analysis) {
+            const container = document.getElementById('chatMessages');
+            const jobsDiv = document.createElement('div');
+            jobsDiv.className = 'flex items-start gap-4 message-animation';
+
+            let jobsHtml = analysis.job_suggestions.map(job => `
+            <div class="job-card p-4 rounded-lg mb-3">
+                <h4 class="font-semibold text-gray-900 dark:text-white">${job.title}</h4>
+                <p class="text-sm text-gray-600 dark:text-gray-400">${job.company}</p>
+                <div class="flex items-center justify-between mt-2">
+                    <span class="text-xs bg-green-100 dark:bg-green-800 text-green-800 dark:text-green-200 px-2 py-1 rounded-full">
+                        ${job.match_score}% Match
+                    </span>
+                    <a href="${job.linkedin_url}" target="_blank" class="text-xs text-primary hover:text-primary/80">
+                        View on LinkedIn →
+                    </a>
+                </div>
+            </div>
+        `).join('');
+
+            jobsDiv.innerHTML = `
+            <div class="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white font-bold">AI</div>
+            <div class="flex flex-col items-start max-w-lg">
+                <span class="text-sm text-gray-500 dark:text-gray-400 mb-1">CareerMate</span>
+                <div class="p-4 rounded-lg rounded-tl-none bg-gray-200 dark:bg-gray-800 text-gray-800 dark:text-gray-200">
+                    <h3 class="font-semibold mb-2">🎯 Job Recommendations</h3>
+                    <p class="text-sm mb-3">Based on your resume, here are some matching opportunities:</p>
+                    ${jobsHtml}
+                    <p class="text-xs text-gray-500 mt-2">💡 Skills found: ${analysis.skills_found.join(', ')}</p>
+                </div>
+            </div>
+        `;
+
+            container.appendChild(jobsDiv);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // Smart contextual suggestions
+        function getSuggestions(aiMessage, userMessage = '') {
+            const aiLower = aiMessage.toLowerCase();
+            const userLower = userMessage.toLowerCase();
+
+            if (aiLower.includes('resume') || aiLower.includes('cv') || userLower.includes('resume')) {
+                return ['📄 Upload my resume now', '✨ Resume formatting tips', '🎯 ATS optimization guide', '💼 Common interview questions'];
+            }
+
+            if (aiLower.includes('job') && aiLower.includes('linkedin')) {
+                return ['🚀 Machine Learning Engineer roles', '👨‍💻 Frontend Developer positions', '📊 Data Scientist opportunities', '🤖 AI Research positions'];
+            }
+
+            return ['🔍 Find me AI jobs', '📄 Analyze my resume', '🎤 Prepare for interviews', '📈 Plan my career path'];
+        }
+
+        function getLastUserMessage() {
+            for (let i = conversationHistory.length - 1; i >= 0; i--) {
+                if (conversationHistory[i].isUser) {
+                    return conversationHistory[i].message;
+                }
+            }
+            return '';
+        }
+
+        function sendSuggestion(suggestion) {
+            console.log('Suggestion clicked:', suggestion);
+            const input = document.getElementById('messageInput');
+            input.value = suggestion;
+            sendMessage();
+        }
+
+        // FIXED sendMessage function with backend suggestions support
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            if (!message) return;
+
+            conversationHistory.push({
+                message: message,
+                isUser: true,
+                timestamp: new Date()
+            });
+
+            addMessage(message, true);
+            input.value = '';
+
+            document.getElementById('typingIndicator').classList.remove('hidden');
+
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: message,
+                        language: currentLanguage
+                    })
+                });
+
+                const data = await response.json();
+                document.getElementById('typingIndicator').classList.add('hidden');
+
+                if (data.success) {
+                    conversationHistory.push({
+                        message: data.response,
+                        isUser: false,
+                        timestamp: new Date()
+                    });
+
+                    // Use backend suggestions if available, otherwise generate client-side
+                    const suggestions = data.suggestions || [];
+                    addMessage(data.response, false, suggestions);
+                } else {
+                    addMessage('Sorry, I encountered an error. Please try again.', false);
+                }
+            } catch (error) {
+                document.getElementById('typingIndicator').classList.add('hidden');
+                addMessage('Connection error. Please check your internet connection.', false);
+            }
+        }
+
+        async function speakMessage(text) {
+            try {
+                showVoiceInterface('speaking', 'Speaking...');
+
+                const response = await fetch('/api/speak', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        text: text,
+                        language: currentLanguage
+                    })
+                });
+
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const audio = new Audio(URL.createObjectURL(blob));
+                    audio.onended = () => hideVoiceInterface();
+                    audio.play();
+                } else {
+                    hideVoiceInterface();
+                    alert('Speech generation failed. Please try again.');
+                }
+            } catch (error) {
+                hideVoiceInterface();
+                console.error('Speech error:', error);
+                alert('Could not generate speech. Check your connection.');
+            }
+        }
+
+        function startVoiceInput() {
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                alert('🎤 Voice input not supported in this browser. Try Chrome or Edge!');
+                return;
+            }
+
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+
+            const langMap = {
+                'en': 'en-US',
+                'hi': 'hi-IN',
+                'pa': 'pa-IN',
+                'kn': 'kn-IN'
+            };
+
+            recognition.lang = langMap[currentLanguage] || 'en-US';
+            recognition.continuous = false;
+            recognition.interimResults = true;
+
+            showVoiceInterface('listening', 'Say something...');
+
+            recognition.onstart = function () {
+                isListening = true;
+                updateVoiceStatus('Listening...');
+            };
+
+            recognition.onresult = function (event) {
+                let finalTranscript = '';
+                let interimTranscript = '';
+
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const transcript = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) {
+                        finalTranscript += transcript;
+                    } else {
+                        interimTranscript += transcript;
+                    }
+                }
+
+                if (finalTranscript) {
+                    document.getElementById('messageInput').value = finalTranscript;
+                    updateVoiceStatus(`Heard: "${finalTranscript}"`);
+
+                    setTimeout(() => {
+                        hideVoiceInterface();
+                        sendMessage();
+                    }, 1000);
+                } else {
+                    updateVoiceStatus(`Listening: ${interimTranscript}`);
+                }
+            };
+
+            recognition.onerror = function (event) {
+                isListening = false;
+                hideVoiceInterface();
+                alert(`Voice recognition error: ${event.error}. Please try again.`);
+            };
+
+            recognition.onend = function () {
+                isListening = false;
+                if (document.querySelector('.voice-interface')) {
+                    setTimeout(hideVoiceInterface, 1000);
+                }
+            };
+
+            recognition.start();
+        }
+
+        function showVoiceInterface(mode, text) {
+            const existing = document.querySelector('.voice-interface');
+            if (existing) existing.remove();
+
+            const voiceInterface = document.createElement('div');
+            voiceInterface.className = 'voice-interface';
+            voiceInterface.innerHTML = `
+            <div class="voice-circle ${mode}" id="voiceCircle">
+                <div class="voice-particles" id="voiceParticles"></div>
+                <div style="font-size: 3rem; color: white;">🎤</div>
+            </div>
+            <div class="voice-text" id="voiceText">${text}</div>
+            <div class="voice-status" id="voiceStatus">Ready</div>
+            <button onclick="hideVoiceInterface()" class="mt-4 px-6 py-2 bg-red-500 hover:bg-red-600 text-white rounded-full transition-colors">Stop</button>
+        `;
+
+            document.body.appendChild(voiceInterface);
+
+            if (mode === 'listening') {
+                addVoiceParticles();
+            }
+        }
+
+        function updateVoiceStatus(status) {
+            const statusElement = document.getElementById('voiceStatus');
+            if (statusElement) {
+                statusElement.textContent = status;
+            }
+        }
+
+        function hideVoiceInterface() {
+            const voiceInterface = document.querySelector('.voice-interface');
+            if (voiceInterface) {
+                voiceInterface.remove();
+            }
+
+            if (recognition && isListening) {
+                recognition.stop();
+                isListening = false;
+            }
+        }
+
+        function addVoiceParticles() {
+            const particlesContainer = document.getElementById('voiceParticles');
+            if (!particlesContainer) return;
+
+            for (let i = 0; i < 20; i++) {
+                setTimeout(() => {
+                    const particle = document.createElement('div');
+                    particle.className = 'voice-particle';
+                    particle.style.left = Math.random() * 100 + '%';
+                    particle.style.animationDelay = Math.random() * 3 + 's';
+                    particle.style.animationDuration = (2 + Math.random() * 2) + 's';
+                    particlesContainer.appendChild(particle);
+
+                    setTimeout(() => {
+                        if (particle.parentNode) {
+                            particle.remove();
+                        }
+                    }, 5000);
+                }, i * 200);
+            }
+        }
+
+        function changeLanguage() {
+            currentLanguage = document.getElementById('language-select').value;
+            console.log('Language changed to:', currentLanguage);
+        }
+
+        async function uploadResume(file) {
+            const formData = new FormData();
+            formData.append('resume', file);
+
+            const statusDiv = document.getElementById('uploadStatus');
+            statusDiv.className = 'mt-2 text-sm text-blue-600';
+            statusDiv.textContent = '📤 Uploading and analyzing...';
+            statusDiv.classList.remove('hidden');
+
+            try {
+                const response = await fetch('/api/upload-resume', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    statusDiv.className = 'mt-2 text-sm text-green-600';
+                    statusDiv.textContent = '✅ Resume analyzed successfully!';
+
+                    addMessage(`📄 Uploaded: ${file.name}`, true);
+                    addMessage(data.message, false);
+
+                    if (data.analysis && data.analysis.job_suggestions) {
+                        setTimeout(() => {
+                            addJobSuggestions(data.analysis);
+                        }, 1000);
+                    }
+
+                    setTimeout(() => {
+                        statusDiv.classList.add('hidden');
+                    }, 3000);
+                } else {
+                    statusDiv.className = 'mt-2 text-sm text-red-600';
+                    statusDiv.textContent = `❌ ${data.error}`;
+                }
+            } catch (error) {
+                statusDiv.className = 'mt-2 text-sm text-red-600';
+                statusDiv.textContent = '❌ Upload failed. Please try again.';
+            }
+        }
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                uploadResume(file);
+            }
+        }
+
+        function handleFileDrop(event) {
+            event.preventDefault();
+            event.currentTarget.classList.remove('dragover');
+
+            const files = event.dataTransfer.files;
+            if (files.length > 0) {
+                uploadResume(files[0]);
+            }
+        }
+
+        // Event listeners
+        document.getElementById('language-select').addEventListener('change', changeLanguage);
+        document.getElementById('messageInput').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') {
+                hideVoiceInterface();
+            }
+        });
+    </script>
+
+</body>
+
+</html>
